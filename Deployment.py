@@ -6,72 +6,63 @@ import re
 import string
 import nltk
 import spacy
-from wordcloud import WordCloud
-import matplotlib.pyplot as plt
+from collections import Counter
 
-# Load the model and vectorizer
+# Load pre-trained model and vectorizer
 with open("svm_model.pkl", "rb") as file:
     model = pickle.load(file)
 with open("tfidf_vectorizer.pkl", "rb") as file:
     vectorizer = pickle.load(file)
 
-# Download necessary NLTK data
+# Download NLTK stopwords
 nltk.download('stopwords')
 stopwords = nltk.corpus.stopwords.words('english')
 
-# Text preprocessing functions
 def clean_text(text):
     text = text.lower()
-    text = re.sub(r'\d+', '', text)
-    text = text.strip()
-    return text
+    return text.strip()
 
 def remove_punctuation(text):
-    return "".join([i for i in text if i not in string.punctuation])
+    return "".join([char for char in text if char not in string.punctuation])
 
 def tokenization(text):
-    return re.split(' ', text)
+    return re.split(r'\s+', text)
 
-def remove_stopwords(text):
-    return " ".join([i for i in text if i not in stopwords])
+def remove_stopwords(tokens):
+    return [word for word in tokens if word not in stopwords]
 
-def lemmatizer(text):
+def lemmatizer(tokens):
     nlp = spacy.load('en_core_web_sm')
-    doc = nlp(text)
-    return " ".join([token.lemma_ for token in doc if token.text not in set(stopwords)])
+    doc = nlp(' '.join(tokens))
+    return [token.lemma_ for token in doc if token.lemma_ not in stopwords]
 
-# Streamlit app
+def word_frequency(tokens):
+    return Counter(tokens)
+
+# Streamlit application layout
 st.title("Comprehensive Guide on NLP")
 st.markdown("By Dangeti Sravya")
+image = Image.open("emoji_satisfaction_meter.jpg")
+st.image(image, use_column_width=True)
 
-# Display the main image
-# image = Image.open("image.png")
-# st.image(image, use_column_width=True)
-
-# Text input from user
 st.subheader("Enter your text here:")
 user_input = st.text_area("")
 
-# Generate word cloud
 if user_input:
-    user_input_cleaned = clean_text(user_input)
-    wordcloud = WordCloud(stopwords=stopwords, background_color='white').generate(user_input_cleaned)
-    plt.figure(figsize=(10, 6))
-    plt.imshow(wordcloud, interpolation='bilinear')
-    plt.axis('off')
-    st.pyplot(plt)
+    cleaned_text = clean_text(user_input)
+    cleaned_text = remove_punctuation(cleaned_text)
+    tokens = tokenization(cleaned_text)
+    tokens = remove_stopwords(tokens)
+    lemmatized_tokens = lemmatizer(tokens)
+    
+    # Display word frequency
+    st.subheader("Word Frequency:")
+    word_freq = word_frequency(lemmatized_tokens)
+    st.write(word_freq)
 
-    user_input = remove_punctuation(user_input_cleaned)
-    user_input = tokenization(user_input)
-    user_input = remove_stopwords(user_input)
-    user_input = lemmatizer(user_input)
-
-# Predict sentiment
-if st.button("Predict"):
-    if user_input:
-        text_vectorized = vectorizer.transform([" ".join(user_input)])
+    if st.button("Predict"):
+        text_vectorized = vectorizer.transform([user_input])
         prediction = model.predict(text_vectorized)[0]
-        prediction_prob = model.decision_function(text_vectorized)[0]
         st.header("Prediction:")
         if prediction == -1:
             st.subheader("The sentiment of the given text is: Negative")
@@ -79,16 +70,5 @@ if st.button("Predict"):
             st.subheader("The sentiment of the given text is: Neutral")
         elif prediction == 1:
             st.subheader("The sentiment of the given text is: Positive")
-        st.write(f"Confidence scores: {prediction_prob}")
-    else:
-        st.subheader("Please enter a text for prediction.")
-
-# Display sentiment analysis image
-# image = Image.open("sentimental analysis image.png")
-# st.image(image, use_column_width=True)
-
-# Feedback collection
-st.subheader("Feedback")
-feedback = st.radio("Was the prediction accurate?", ('Yes', 'No'))
-if feedback:
-    st.write("Thank you for your feedback!")
+else:
+    st.subheader("Please enter a text for prediction.")
